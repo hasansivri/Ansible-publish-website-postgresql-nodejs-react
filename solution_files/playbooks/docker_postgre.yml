@@ -1,0 +1,133 @@
+---
+- name: configure postgre instance # hata ayaklaması kolay olduğundan yazıyoruz
+  hosts: _ansible_postgresql  # ansible-inventory --graph yazdığımız yerden aldık
+  become: true  # sudo yetkisi
+  vars_files:     # secret.yml den şifreyi alacağını gösterdi.
+    - secret.yml
+  tasks:
+    # UPDATE ettik.
+    # - name: update all packages
+    #   ansible.builtin.yum:
+    #     name: "*"  # yıldız ve latest yaprsan ==> "yum -y update ." yaptı. 
+    #     state: latest
+
+    # HATA ALMAMAK İÇİN ÖNCE KALDIRMAN GEREKİYOR. NAMEDEN SONRA
+    # - name: remove old docker packages
+    #   ansible.builtin.yum:
+  ##### # https://docs.docker.com/engine/install/centos/ aldın
+    #     name:
+    #       - docker
+    #       - docker-client
+    #       - docker-client-latest
+    #       - docker-common
+    #       - docker-latest
+    #       - docker-latest-logrotate
+    #       - docker-logrotate
+    #       - docker-engine
+    #     state: removed
+
+
+#### https://docs.docker.com/engine/install/centos/ Set up the repository
+    # - name: install yum utils
+    #   ansible.builtin.yum:
+    #     name: "yum-utils"
+    #     state: latest
+
+##### https://docs.docker.com/engine/install/centos/ Set up the repository aldın URL
+    # - name: add docker repo
+    #   ansible.builtin.get_url:
+    #     url: https://download.docker.com/linux/centos/docker-ce.repo
+    #     dest: /etc/yum.repos.d/docker-ce.repo   ###### etc indirmeyi https://docs.ansible.com/ansible/latest/collections/ansible/builtin/get_url_module.html buradan aldı
+ 
+
+ ##### docker kuruyoruz
+    # - name: install docker
+    #   ansible.builtin.package:
+    #     name: docker-ce  ###### docker engine container
+    #     state: latest
+
+
+###### docker groupa ec-2 ekleyeceğiz
+    # - name: add user ec2-user to docker group
+    #   ansible.builtin.user:
+    #     name: ec2-user
+    #     groups: docker
+    #     append: yes    ##### grouba silmeden eklenir.
+
+### systemi start ettik .
+    # - name: start docker service
+    #   ansible.builtin.service:
+    #     name: docker
+    #     state: started
+    #     enabled: yes
+
+#####3 init.sql ve dockerfile  postgre dosyasına göndereceğiz. sebebi container oluşturma işlemini burada yapacapı için    
+    - name: copy files to the postgresql node
+      ansible.builtin.copy:
+        src: /home/ec2-user/ansible/ansible-project/postgres/
+        dest: /home/ec2-user/postgresql
+
+
+#### developerların değişikik yaptığı müddetçe son hali göremk için bu hali yaptık.
+    - name: remove cw_postgre container
+      community.docker.docker_container:
+        name: cw_postgre
+        state: absent    # silme ve remove işlmein gerekçesi https://docs.ansible.com/ansible/latest/collections/community/docker/docker_container_module.html    # --state
+        force_kill: true
+
+    - name: remove clarusway/postgre image
+      community.docker.docker_image:
+        name: clarusway/postgre  # bu isim nerede verdi isen aynını yap
+        state: absent
+
+    - name: build docker image
+      community.docker.docker_image:
+        name: clarusway/postgre
+        build:
+          path: /home/ec2-user/postgresql  #  yukarıdaki "dest" ile aynı yapacağız.  
+        source: build
+        state: present
+      register: image_info    # başarılı birr şekilde çalışıp çalışmadığını gösterir.
+
+    - name: print the image info
+      ansible.builtin.debug:
+        var: image_info
+
+    - name: run postgresql docker container
+      community.docker.docker_container:
+        name: cw_postgre   # container ismi aynı olacak yukarı ile
+        image: clarusway/postgre
+        state: started
+        ports:
+          - "5432:5432"   ####  host: container
+        
+        # students_files server/.env den aldık...
+        env:
+          POSTGRES_PASSWORD:  "{{password}}"   # "playbooks" içinde yapacağız.  ansible-vault create secret.yml   görmek için "ansible-vault view secret.yml"
+        volumes:
+          - /db-data:/var/lib/postgresql/data   # https://hub.docker.com/_/postgres PGDATA dan aldık
+      register: container_info    # başarılı birr şekilde çalışıp çalışmadığını gösterir
+
+    - name: print the container info
+      ansible.builtin.debug:
+        var: container_info
+
+# ansible-playbook --ask-vault-pass docker_postgre.yml
+# conatainerin çalışıp çalışmadığını gösteren komut ==> ansible _ansible_postgresql -m shell -a "docker images ; docker ps"
+        
+
+        
+        
+        
+
+
+        
+
+
+
+
+
+
+
+
+

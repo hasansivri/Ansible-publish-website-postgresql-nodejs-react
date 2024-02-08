@@ -1,0 +1,15 @@
+plugin: aws_ec2
+regions:
+  - "us-east-1"
+filters:
+  tag:stack: ansible_project # 4 makinde de bulunur.
+keyed_groups:
+  - key: tags.Name    # isimlerine tag işlemi yapılmış
+  # separator: "__"  ==> ansible-inventory --graph yapınca "_" çizgiler kalkacaktır.
+  # prefix: my => ansible-inventory --graph başına isim koymak için 
+  - key: tags.environment # 3 makinenin üçünüde işlem yaptırmak için env kullanıldı.
+compose:
+  ansible_host: public_ip_address
+
+ # dogru makinelere işlem yapabilmek için, doğru şekilde filtre yapabilmek için tag işlemi yapıyoruz. 
+ # ansible-inventory --graph ==> ile görebilirz.
